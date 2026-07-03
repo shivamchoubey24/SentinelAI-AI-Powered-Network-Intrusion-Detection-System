@@ -1,0 +1,98 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+ENV/
+env/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Environment variables
+.env
+*.env
+!.env.example
+
+# Logs
+logs/
+*.log
+
+# Data
+data/raw/*
+data/processed/*
+data/models/*
+data/blockchain/*.pkl
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/models/.gitkeep
+
+# Outputs
+outputs/
+*.csv
+*.json
+*.pkl
+*.h5
+*.pb
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# MLflow
+mlruns/
+mlartifacts/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Blockchain data
+blockchain_data/
+
+# Model checkpoints
+checkpoints/
+*.ckpt
+
+# Cache
+.cache/
+*.cache
+
+# Documentation builds
+docs/_build/
+site/

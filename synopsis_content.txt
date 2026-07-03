@@ -1,0 +1,203 @@
+PROJECT-I B.E(IT)
+
+Submitted By:
+Sourav Biswas(UE238103)
+Shubham Choubey(UE238101)
+Om Suneri(UE238066)
+Tanuj Ramchandani(UE238108)
+Sehwag Meena(UE238095)
+Yatin Kumar(UE238112)
+
+Submitted To:
+Dr. Amandeep Verma Ma’am
+Amrit Sandhu Ma’am
+
+DEPARTMENT OF INFORMATION TECHNOLOGY
+University Institute of Engineering & Technology
+Panjab University,Chandigarh
+
+AI-Powered Network Security System with Real-Time
+ETL Pipelines, Automated MLOps Retraining, and
+Blockchain-Secured Logs
+1. Introduction of the Problem
+1.1 With the exponential rise in cyberattacks, traditional network
+defense mechanisms (firewalls, IDS/IPS, antivirus) often fail to detect
+modern and unknown threats.
+1.2 Today’s networks generate massive amounts of logs, traffic traces,
+and alerts, but manual monitoring of this “big security data” is slow and
+inefficient.
+1.3 Current challenges include:
+● Difficulty in processing large-scale heterogeneous data in real
+
+time.
+● Low adaptability against zero-day and evolving attack patterns.
+● Vulnerability of log systems to tampering, which weakens forensic
+audits.
+● Absence of an automated compliance-friendly framework for
+data protection.
+1.4 This project aims to solve these issues by designing an
+integrated AI-driven, automated, and blockchain-secured
+network security system with real-time detection and immutable
+audit trails.
+
+2. Objectives / Components / Modules of the Project
+2.1 Automated ETL Pipeline for Security Data
+● Extract network logs, firewall data, and traffic details.
+● Transform and normalize data for ML processing.
+● Load structured data into secured storage with blockchain-based
+
+logging of every ETL operation.
+2.2 AI-Powered Threat Detection Module
+● Train deep learning models (MLP-GRU architectures) for anomaly
+
+detection and classification.
+
+● Detect intrusion attempts, malware, phishing, and other irregular
+
+activities with high accuracy.
+2.3 Blockchain-Secured Audit System
+● Record every ETL operation and system activity on blockchain to
+
+create tamper-proof logs.
+● Enable forensic auditing and automated regulatory compliance
+verification.
+2.4 MLOps for Automation and Scalability
+● Automate retraining and redeployment of ML models as new
+
+threats emerge.
+● Use model versioning, performance tracking, and drift detection
+for continuous improvement.
+2.5 Real-Time Monitoring & Alerts Dashboard
+● Provide a centralized dashboard (using FastAPI/Streamlit) for live
+
+threat analytics.
+● Generate alerts, prioritize threats, and assist analysts in decisionmaking.
+
+3. Technology Stack
+3.1 ETL & Processing: Python, Pandas, Apache Airflow, Apache Spark
+3.2 Data Streaming: Apache Kafka
+3.3 Machine Learning/AI: TensorFlow, PyTorch, Scikit-learn
+3.4 MLOps: MLflow, DagsHub
+3.5 Blockchain: Hyperledger Fabric, Ethereum Smart Contracts, IPFS
+3.6 Databases & Storage: MongoDB, PostgreSQL, AWS S3
+3.7 Deployment: Docker, Kubernetes, AWS EC2
+3.8 Frontend & Monitoring: Streamlit, FastAPI, Grafana
+
+4. Data Used / Data Sources
+4.1 Public Security Datasets:
+● CIC-IDS2017 (intrusion detection dataset)
+● UNSW-NB15 (network intrusion dataset)
+● Phishing Websites Dataset
+
+4.2 Real-Time Data Sources:
+
+● Logs generated from firewalls, OS event logs, and packet sniffers
+
+(Wireshark/TCPdump).
+● Threat intelligence feeds for emerging attack patterns.
+4.3 Synthetic & Simulated Data:
+● Attack simulation scenarios to train and validate system.
+
+5. Proposed Methodology (Steps with Flow)
+Step 1: Data Ingestion
+Collect raw data (logs, network packets, firewall alerts).
+Step 2: ETL Preprocessing with Blockchain Logging
+Clean, normalize, and record ETL events on blockchain for auditability.
+Step 3: Feature Engineering & Model Training
+Extract features and train hybrid MLP-GRU deep learning models.
+Step 4: Deployment & Inference
+Deploy trained models in production via MLOps pipeline for real-time
+predictions.
+Step 5: Blockchain-Secured Audit Layer
+All system events logged in immutable blockchain for compliance.
+Step 6: Continuous Monitoring & Alerts
+System generates real-time alerts via dashboard; ML models retrain
+automatically using new data.
+Step 7: Feedback & Adaptability
+Analyst feedback + new intelligence updates improve retrained models.
+
+6. Work Plan (Gantt Chart Format)
+Week
+
+Activity
+
+Outcome
+
+1-2
+
+Literature Review & Requirements
+Analysis
+
+Problem understanding and scope
+finalization
+
+3-4
+
+Data Collection & ETL Pipeline
+Implementation
+
+Working ETL pipeline with
+blockchain logging
+
+5-6
+
+Model Development (MLP-GRU) &
+Training
+
+Trained model with baseline accuracy
+
+7
+
+MLOps Pipeline Setup
+
+Automated training and deployment
+workflows
+
+8-9
+
+Blockchain Integration for Secure
+Logging
+
+Immutable and auditable logs ready
+
+10
+
+Dashboard Development
+(FastAPI/Streamlit)
+
+Real-time monitoring interface
+
+11
+
+System Integration & Testing
+
+Integrated end-to-end security
+system
+
+12
+
+Optimization and Validation
+
+Performance tuning
+
+13
+
+Documentation & Final Report
+Preparation
+
+Complete project documentation
+
+7. Bibliography / References
+1. Canadian Institute for Cybersecurity (CIC). CIC-IDS2017 Dataset.
+UNB, 2017.
+2. M. Garcia & D. Thompson, "MLOps Best Practices for Cybersecurity
+Applications," Journal of Information Security, 2024.
+3. J. Smith et al., "Hybrid Blockchain-AI Frameworks for Secure ETL
+Pipeline Management," Journal of Cybersecurity Research, 2025.
+4. Apache Airflow Documentation, 2025 – www.airflow.apache.org
+5. MLflow Documentation, 2025 – www.mlflow.org
+6. Hyperledger Fabric Documentation, 2025 – www.hyperledger.org
+7. L. Chen et al., "Blockchain-based Audit Trails for Data
+Compliance," ACM Computing Surveys, 2024.
+
+
