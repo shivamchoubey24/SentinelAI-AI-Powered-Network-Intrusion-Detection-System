@@ -1,4 +1,4 @@
-# AI-Powered Network Intrusion Detection System
+# SentinelAI — AI-Powered Network Intrusion Detection System
 
 **Real-Time ETL Pipelines · Deep Learning Threat Detection · Automated MLOps Retraining · Blockchain-Secured Audit Logs**
 
