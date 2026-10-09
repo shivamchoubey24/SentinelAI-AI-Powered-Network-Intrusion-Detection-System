@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies (CPU TensorFlow)
+        run: |
+          sed 's/^tensorflow>=/tensorflow-cpu>=/' requirements.txt > /tmp/req.txt
+          pip install -r /tmp/req.txt
+          pip check
+      - name: Lint (syntax errors + pyflakes)
+        run: ruff check src scripts tests --select E9,F
+      - name: Tests
+        run: pytest -q --cov=src --cov-report=term-missing
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate compose file
+        run: |
+          cp config/.env.example config/.env
+          POSTGRES_PASSWORD=x docker compose --profile postgres config --quiet
+      - name: Build image
+        run: docker build -t sentinelai:ci .
+      - name: Smoke test the API container
+        run: |
+          docker run -d --name sentinel-smoke -p 8000:8000 \
+            -e SENTINEL_API_KEYS="ci:ci-test-key:viewer" sentinelai:ci
+          for i in $(seq 1 40); do
+            curl -sf http://127.0.0.1:8000/health && break
+            sleep 3
+          done
+          curl -sf http://127.0.0.1:8000/health | grep '"status":"ok"'
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/api/v1/status)" = "401"
+          curl -sf -H "X-API-Key: ci-test-key" http://127.0.0.1:8000/api/v1/status | grep audit_chain
+      - name: Container logs on failure
+        if: failure()
+        run: docker logs sentinel-smoke || true

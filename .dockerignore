@@ -1,0 +1,12 @@
+.git
+.github
+venv
+__pycache__
+*.pyc
+.pytest_cache
+logs
+data
+config/.env
+tests
+*.md
+Synopsis Report.pdf

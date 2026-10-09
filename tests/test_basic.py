@@ -50,12 +50,13 @@ def sample_data():
 
 def test_imports():
     """Test that all main modules can be imported"""
+    pytest.importorskip("tensorflow")
     try:
-        from src.etl import pipeline
-        from src.models import threat_detector
-        from src.blockchain import blockchain_logger
-        from src.mlops import auto_retrainer
-        from src.utils import config_loader, logger
+        from src.etl import pipeline  # noqa: F401
+        from src.models import threat_detector  # noqa: F401
+        from src.blockchain import blockchain_logger  # noqa: F401
+        from src.mlops import auto_retrainer  # noqa: F401
+        from src.utils import config_loader, logger  # noqa: F401
         assert True
     except ImportError as e:
         pytest.fail(f"Import failed: {str(e)}")
@@ -128,6 +129,7 @@ def test_etl_transformer(sample_config, sample_data):
 
 def test_model_building(sample_config):
     """Test MLP-GRU model building"""
+    pytest.importorskip("tensorflow")
     from src.models.threat_detector import MLPGRUModel
     
     model = MLPGRUModel(sample_config)

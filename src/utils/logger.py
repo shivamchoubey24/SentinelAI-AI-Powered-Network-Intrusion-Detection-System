@@ -8,7 +8,6 @@ import sys
 from pathlib import Path
 from logging.handlers import RotatingFileHandler
 from datetime import datetime
-import os
 
 
 def setup_logger(name: str, log_level: str = "INFO") -> logging.Logger:

@@ -8,10 +8,9 @@ import sys
 import logging
 import mlflow
 import mlflow.tensorflow
-from datetime import datetime, timedelta
-from typing import Dict, List, Any, Optional
+from datetime import datetime
+from typing import Dict, Any, Optional
 from pathlib import Path
-import numpy as np
 import pandas as pd
 
 # Add parent directory to path
@@ -19,7 +18,7 @@ sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from src.utils.config_loader import ConfigLoader
 from src.utils.logger import setup_logger
-from src.models.threat_detector import ThreatDetector, MLPGRUModel
+from src.models.threat_detector import ThreatDetector
 from src.blockchain.blockchain_logger import BlockchainLogger
 
 logger = setup_logger(__name__)
@@ -32,17 +31,23 @@ class ModelRegistry:
         self.config = config
         self.logger = logging.getLogger(__name__)
         
-        # Set MLflow tracking URI
+        # Fail fast when no MLflow server is reachable (its default is minutes of
+        # retries) and degrade gracefully instead of making AutoRetrainer unusable.
+        os.environ.setdefault("MLFLOW_HTTP_REQUEST_MAX_RETRIES", "0")
+        os.environ.setdefault("MLFLOW_HTTP_REQUEST_TIMEOUT", "5")
+        self.available = False
         mlflow_uri = config.get('mlops', {}).get('tracking', {}).get('mlflow_uri', 'http://localhost:5000')
-        mlflow.set_tracking_uri(mlflow_uri)
-        
-        # Set experiment
         experiment_name = config.get('mlops', {}).get('tracking', {}).get('experiment_name', 'network_security')
-        mlflow.set_experiment(experiment_name)
-        
-        self.logger.info(f"MLflow tracking URI: {mlflow_uri}")
-        self.logger.info(f"MLflow experiment: {experiment_name}")
-    
+        try:
+            mlflow.set_tracking_uri(mlflow_uri)
+            mlflow.set_experiment(experiment_name)
+            self.available = True
+            self.logger.info(f"MLflow tracking URI: {mlflow_uri}, experiment: {experiment_name}")
+        except Exception as e:
+            self.logger.warning(
+                f"MLflow unavailable at {mlflow_uri} ({e.__class__.__name__}); "
+                "model registry features are disabled, monitoring and training still work.")
+
     def log_model(self, model, model_name: str, metrics: Dict[str, float], 
                   params: Dict[str, Any], artifacts: Optional[Dict[str, str]] = None) -> str:
         """
@@ -216,7 +221,6 @@ class ModelMonitor:
                     ref_mean = reference_data[column].mean()
                     curr_mean = current_data[column].mean()
                     ref_std = reference_data[column].std()
-                    curr_std = current_data[column].std()
                     
                     # Calculate drift score (simplified)
                     mean_diff = abs(ref_mean - curr_mean) / (ref_std + 1e-7)
@@ -271,9 +275,8 @@ class AutoRetrainer:
             elif schedule == 'monthly' and days_since_training >= 30:
                 return True
             
-            # Check if enough new data is available
-            min_samples = self.config.get('model', {}).get('retraining', {}).get('min_new_samples', 1000)
-            # This would check actual new data count in production
+            # NOTE: 'min_new_samples' is not enforced - new-record counts are not
+            # tracked yet, so only the schedule above triggers retraining.
             
             self.logger.info("Retraining not needed at this time")
             return False
@@ -365,46 +368,74 @@ class AutoRetrainer:
                 'error': str(e)
             }
     
-    def run_monitoring_cycle(self, test_data_path: str) -> Dict[str, Any]:
+    def run_monitoring_cycle(self, test_data_path: str,
+                             latest_info_path: str = "data/models/latest.json") -> Dict[str, Any]:
         """
-        Run a complete monitoring cycle
-        
+        Evaluate the latest trained model on labelled data and check for drift.
+
+        Compares fresh metrics with the training-time baseline stored in
+        latest.json (performance drift, threshold = retraining.drift_threshold)
+        and with the absolute floor retraining.performance_threshold.
+        Does NOT retrain by itself; the caller decides using `needs_retraining`.
+
         Args:
-            test_data_path: Path to test data for evaluation
-        
-        Returns:
-            Monitoring results
+            test_data_path: CSV of preprocessed features; last column = binary label
+            latest_info_path: pointer file written by scripts/train_model.py
         """
         try:
             self.logger.info("Running model monitoring cycle...")
-            
-            # Load test data
+            import json
+            from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
+            from src.models.threat_detector import MLPGRUModel
+
+            info_path = Path(latest_info_path)
+            if not info_path.exists():
+                return {'error': f"No trained model found ({latest_info_path}); train one first"}
+            info = json.loads(info_path.read_text())
+
             test_data = pd.read_csv(test_data_path)
-            X_test = test_data.iloc[:, :-1].values
-            y_test = test_data.iloc[:, -1].values
-            
-            # Load current production model
-            detector = ThreatDetector()
-            # In production, load from MLflow registry
-            
-            # Evaluate current performance
-            # current_metrics = detector.model.evaluate(X_test, y_test)
-            
-            # Check for drift
-            # drift_detected = self.model_monitor.detect_performance_drift(current_metrics)
-            
-            # If drift detected, trigger retraining
-            # if drift_detected:
-            #     self.logger.warning("Drift detected, triggering retraining...")
-            #     self.retrain_model(data_path)
-            
-            monitoring_result = {
-                'timestamp': datetime.now().isoformat(),
-                'monitoring_completed': True
+            if len(test_data) == 0 or test_data.shape[1] < 2:
+                return {'error': "Test data must have at least one row, a feature column and a label column"}
+            X = test_data.iloc[:, :-1].values.astype(float)
+            y = test_data.iloc[:, -1].values
+
+            model = MLPGRUModel(self.config)
+            model.load_model(info["model_path"])
+            y_pred, _ = model.predict(X)
+
+            current = {
+                'accuracy': float(accuracy_score(y, y_pred)),
+                'precision': float(precision_score(y, y_pred, zero_division=0)),
+                'recall': float(recall_score(y, y_pred, zero_division=0)),
+                'f1_score': float(f1_score(y, y_pred, zero_division=0)),
             }
-            
-            return monitoring_result
-            
+            baseline = {k: float(v) for k, v in info.get("metrics", {}).items()}
+            retrain_cfg = self.config.get('model', {}).get('retraining', {})
+            drift_threshold = float(retrain_cfg.get('drift_threshold', 0.1))
+            floor = float(retrain_cfg.get('performance_threshold', 0.85))
+
+            self.model_monitor.set_baseline(baseline)
+            drift = self.model_monitor.detect_performance_drift(current, threshold=drift_threshold)
+            below_floor = current['accuracy'] < floor
+
+            result = {
+                'timestamp': datetime.now().isoformat(),
+                'monitoring_completed': True,
+                'samples_evaluated': int(len(test_data)),
+                'current_metrics': current,
+                'baseline_metrics': baseline,
+                'performance_drift': bool(drift),
+                'below_performance_threshold': bool(below_floor),
+                'needs_retraining': bool(drift or below_floor),
+            }
+            try:
+                self.blockchain_logger.log_system_event({
+                    'event': 'MODEL_MONITORING', 'accuracy': current['accuracy'],
+                    'performance_drift': bool(drift), 'samples': int(len(test_data))})
+            except Exception as e:
+                self.logger.warning(f"Could not audit-log monitoring result: {e}")
+            return result
+
         except Exception as e:
             self.logger.error(f"Error in monitoring cycle: {str(e)}")
             return {'error': str(e)}

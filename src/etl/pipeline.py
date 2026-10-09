@@ -9,7 +9,7 @@ import logging
 import pandas as pd
 import numpy as np
 from datetime import datetime
-from typing import Dict, List, Any, Optional
+from typing import Dict, Any, Optional
 import json
 from pathlib import Path
 
@@ -196,20 +196,17 @@ class DataLoader:
             return False
     
     def save_to_database(self, df: pd.DataFrame, collection_name: str) -> bool:
-        """Save DataFrame to MongoDB"""
+        """
+        Persist a DataFrame to the configured SQL database (SQLite by default,
+        PostgreSQL via DATABASE_URL). `collection_name` is stored as the
+        record's `source` label. Returns False (and logs) on failure so the
+        pipeline can decide how to react; it never claims success on failure.
+        """
         try:
-            self.logger.info(f"Saving data to MongoDB collection: {collection_name}")
-            
-            # This is a placeholder - implement actual MongoDB connection
-            # from pymongo import MongoClient
-            # client = MongoClient(self.config['mongodb']['uri'])
-            # db = client[self.config['mongodb']['database']]
-            # collection = db[collection_name]
-            # collection.insert_many(df.to_dict('records'))
-            
-            self.logger.info(f"Successfully saved {len(df)} records to database")
+            from src.db import repository
+            written = repository.save_dataframe(df, source=collection_name)
+            self.logger.info(f"Saved {written} records to database (source={collection_name})")
             return True
-            
         except Exception as e:
             self.logger.error(f"Error saving to database: {str(e)}")
             return False

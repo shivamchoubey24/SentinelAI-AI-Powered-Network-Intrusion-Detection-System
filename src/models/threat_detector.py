@@ -10,10 +10,10 @@ import numpy as np
 import pandas as pd
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Tuple, Optional, Any
-import pickle
+from typing import Dict, Tuple, Optional, Any
+import hashlib
+import json
 
-import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers, models
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau
@@ -295,47 +295,96 @@ class MLPGRUModel:
             self.logger.error(f"Error making predictions: {str(e)}")
             raise
     
+    # ---- safe (non-pickle) preprocessing artifacts ---------------------------
+    @staticmethod
+    def _sha256(path: str) -> str:
+        h = hashlib.sha256()
+        with open(path, "rb") as f:
+            for chunk in iter(lambda: f.read(1 << 20), b""):
+                h.update(chunk)
+        return h.hexdigest()
+
+    def _preproc_to_dict(self, model_file: str) -> Dict[str, Any]:
+        sc = self.scaler
+        enc = getattr(self.label_encoder, "classes_", None)
+        return {
+            "format": 1,
+            "scaler": {
+                "mean": np.asarray(sc.mean_).tolist(),
+                "scale": np.asarray(sc.scale_).tolist(),
+                "var": np.asarray(sc.var_).tolist(),
+                "n_features_in": int(sc.n_features_in_),
+                "n_samples_seen": int(np.max(sc.n_samples_seen_)),
+            },
+            "label_classes": None if enc is None else [str(c) for c in enc],
+            "model_sha256": self._sha256(model_file),
+        }
+
+    def _preproc_from_dict(self, d: Dict[str, Any]) -> None:
+        s = d["scaler"]
+        sc = StandardScaler()
+        sc.mean_ = np.asarray(s["mean"], dtype=float)
+        sc.scale_ = np.asarray(s["scale"], dtype=float)
+        sc.var_ = np.asarray(s["var"], dtype=float)
+        sc.n_features_in_ = int(s["n_features_in"])
+        sc.n_samples_seen_ = int(s["n_samples_seen"])
+        self.scaler = sc
+        enc = LabelEncoder()
+        if d.get("label_classes") is not None:
+            enc.classes_ = np.asarray(d["label_classes"])
+        self.label_encoder = enc
+
     def save_model(self, model_path: str):
-        """Save the trained model and preprocessing objects"""
+        """Save the Keras model plus JSON preprocessing state (no pickle)."""
         try:
             self.logger.info(f"Saving model to: {model_path}")
-            
-            # Create directory
             os.makedirs(os.path.dirname(model_path), exist_ok=True)
-            
-            # Save Keras model
-            self.model.save(f"{model_path}_model.h5")
-            
-            # Save scaler and encoder
-            with open(f"{model_path}_scaler.pkl", 'wb') as f:
-                pickle.dump(self.scaler, f)
-            
-            with open(f"{model_path}_encoder.pkl", 'wb') as f:
-                pickle.dump(self.label_encoder, f)
-            
+
+            model_file = f"{model_path}_model.h5"
+            self.model.save(model_file)
+
+            with open(f"{model_path}_preproc.json", "w") as f:
+                json.dump(self._preproc_to_dict(model_file), f)
+
             self.logger.info("Model saved successfully")
-            
         except Exception as e:
             self.logger.error(f"Error saving model: {str(e)}")
             raise
-    
+
     def load_model(self, model_path: str):
-        """Load a trained model and preprocessing objects"""
+        """
+        Load a trained model. Preprocessing comes from JSON; legacy pickle
+        artifacts are refused unless SENTINEL_ALLOW_LEGACY_PICKLE=true
+        (pickle can execute code - convert with scripts/migrate_model_artifacts.py).
+        """
         try:
             self.logger.info(f"Loading model from: {model_path}")
-            
-            # Load Keras model
-            self.model = keras.models.load_model(f"{model_path}_model.h5")
-            
-            # Load scaler and encoder
-            with open(f"{model_path}_scaler.pkl", 'rb') as f:
-                self.scaler = pickle.load(f)
-            
-            with open(f"{model_path}_encoder.pkl", 'rb') as f:
-                self.label_encoder = pickle.load(f)
-            
+            model_file = f"{model_path}_model.h5"
+            preproc_file = f"{model_path}_preproc.json"
+
+            if os.path.exists(preproc_file):
+                with open(preproc_file) as f:
+                    d = json.load(f)
+                expected = d.get("model_sha256")
+                if expected and self._sha256(model_file) != expected:
+                    raise ValueError("Model file hash mismatch - file was modified after training")
+                self._preproc_from_dict(d)
+            elif os.path.exists(f"{model_path}_scaler.pkl"):
+                if os.environ.get("SENTINEL_ALLOW_LEGACY_PICKLE", "").lower() not in ("1", "true", "yes"):
+                    raise RuntimeError(
+                        "Only legacy pickle preprocessing found. Run "
+                        "`python scripts/migrate_model_artifacts.py` once, or set "
+                        "SENTINEL_ALLOW_LEGACY_PICKLE=true if you trust these files.")
+                import pickle  # legacy, explicit opt-in only
+                with open(f"{model_path}_scaler.pkl", "rb") as f:
+                    self.scaler = pickle.load(f)
+                with open(f"{model_path}_encoder.pkl", "rb") as f:
+                    self.label_encoder = pickle.load(f)
+            else:
+                raise FileNotFoundError(f"No preprocessing artifacts found for {model_path}")
+
+            self.model = keras.models.load_model(model_file)
             self.logger.info("Model loaded successfully")
-            
         except Exception as e:
             self.logger.error(f"Error loading model: {str(e)}")
             raise

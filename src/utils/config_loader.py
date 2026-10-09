@@ -5,7 +5,6 @@ Loads and manages application configuration
 
 import os
 import yaml
-import logging
 from typing import Dict, Any, Optional
 from pathlib import Path
 from dotenv import load_dotenv

@@ -1,0 +1,60 @@
+# Usage:
+#   cp config/.env.example config/.env   # then set real API keys / passwords
+#   docker compose up --build            # API on :8000, dashboard on :8501
+#   (set DASHBOARD_PASSWORD and SENTINEL_DASHBOARD_API_KEY in config/.env first)
+#   docker compose --profile postgres up # use PostgreSQL instead of SQLite
+#
+# Train a model inside the stack (needs data/processed/nsl_kdd_processed.csv):
+#   docker compose run --rm api python scripts/download_datasets.py
+#   docker compose run --rm api python scripts/train_model.py
+services:
+  api:
+    build: .
+    env_file: config/.env
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-sqlite:///data/sentinel.db}
+    ports:
+      - "8000:8000"
+    volumes:
+      - sentinel-data:/app/data      # database, models, audit chain survive restarts
+      - sentinel-logs:/app/logs
+    restart: unless-stopped
+
+  dashboard:
+    build: .
+    command: ["streamlit", "run", "src/dashboard/app_simple.py",
+              "--server.port=8501", "--server.address=0.0.0.0"]
+    env_file: config/.env
+    environment:
+      SENTINEL_API_URL: http://api:8000      # the dashboard only talks to the API
+    ports:
+      - "8501:8501"
+    healthcheck:                              # override the API healthcheck baked into the image
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8501/_stcore/health',timeout=4)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 40s
+      retries: 3
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  postgres:
+    profiles: ["postgres"]
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: sentinel
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: sentinel
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sentinel"]
+      interval: 10s
+      retries: 5
+
+volumes:
+  sentinel-data:
+  sentinel-logs:
+  pgdata:
